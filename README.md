@@ -1,0 +1,2 @@
+# earning-Ai
+Good 
