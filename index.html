@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ইনকাম ড্যাশবোর্ড</title>
+    
+    <!-- !!! ১. টেলিগ্রাম WebApp SDK - আবশ্যক !!! -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- !!! ২. Monitag কোড - ইউজার কর্তৃক প্রদত্ত !!! -->
+    <script src='//libtl.com/sdk.js' data-zone='10203916' data-sdk='show_10203916'></script>
+
+    <!-- !!! ৩. Firebase SDKs - Realtime Database এর জন্য !!! -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+    <!-- !!! ৪. CSS স্টাইল (আগের UI ডিজাইনের সাথে মিল রেখে) !!! -->
+    <style>
+        /* টেলিগ্রাম থিম ভ্যারিয়েবল ব্যবহার */
+        :root {
+            --tg-bg: var(--tg-theme-bg-color, #1a1a1a);
+            --tg-text: var(--tg-theme-text-color, #ffffff);
+            --tg-hint: var(--tg-theme-hint-color, #999999);
+            --tg-link: var(--tg-theme-link-color, #43a8ff);
+            --tg-btn-bg: var(--tg-theme-button-color, #ff7e00);
+            --tg-btn-text: var(--tg-theme-button-text-color, #ffffff);
+            --tg-card-bg: var(--tg-theme-secondary-bg-color, #282828);
+        }
+
+        body {
+            background-color: var(--tg-bg);
+            color: var(--tg-text);
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            transition: background-color 0.3s, color 0.3s;
+            -webkit-user-select: none;
+            user-select: none;
+            min-height: 100vh;
+        }
+        
+        /* Loading/Error স্ক্রিন */
+        #loading-screen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        /* --- ড্যাশবোর্ড স্টাইল (আগের কোড থেকে) --- */
+        .app-container {
+            padding: 15px;
+            padding-bottom: 70px;
+        }
+
+        /* হেডার */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .user-info { display: flex; align-items: center; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background-color: #ffd700; margin-right: 10px; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: bold; color: #1a1a1a; }
+        .user-details h3 { margin: 0; font-size: 16px; }
+        .user-details p { margin: 0; font-size: 12px; color: var(--tg-hint); }
+        .settings-icon { font-size: 24px; cursor: pointer; color: var(--tg-text); }
+        
+        /* ব্যালেন্স কার্ড */
+        .balance-card { background-color: var(--tg-card-bg); border-radius: 15px; padding: 20px; margin-bottom: 20px; }
+        .balance-card h4 { margin: 0 0 5px 0; font-size: 14px; color: var(--tg-hint); }
+        .balance-card h1 { margin: 0 0 15px 0; font-size: 30px; font-weight: bold; }
+        .coin-invest-container { display: flex; gap: 10px; }
+        .coin-box, .invest-box { flex: 1; padding: 15px; border-radius: 10px; }
+        .coin-box { background-color: var(--tg-btn-bg); color: var(--tg-btn-text); }
+        .invest-box { background-color: #000000; color: #ffffff; border: 1px solid var(--tg-hint); }
+        .box-title { display: flex; align-items: center; font-size: 12px; margin-bottom: 5px; opacity: 0.8; }
+        .box-title span { margin-left: 5px; }
+        .box-amount { font-size: 18px; font-weight: bold; }
+        
+        /* মেনু গ্রিড */
+        .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .menu-item { background-color: var(--tg-card-bg); padding: 15px; border-radius: 15px; text-align: center; cursor: pointer; transition: transform 0.1s, background-color 0.2s; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100px; }
+        .menu-item:active { transform: scale(0.98); }
+        .menu-icon { font-size: 30px; margin-bottom: 10px; color: var(--tg-btn-bg); }
+        .menu-label { font-size: 14px; font-weight: 500; }
+        
+        /* বটম নেভিগেশন */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background-color: var(--tg-card-bg); border-top: 1px solid var(--tg-hint); display: flex; justify-content: space-around; padding: 10px 0; box-sizing: border-box; z-index: 1000; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; color: var(--tg-hint); font-size: 10px; padding: 5px; }
+        .nav-item.active { color: var(--tg-btn-bg); }
+        .nav-icon { font-size: 24px; margin-bottom: 2px; }
+        .center-btn { background-color: var(--tg-btn-bg); color: var(--tg-btn-text); width: 50px; height: 50px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 20px; margin-top: -15px; box-shadow: 0 4px 10px rgba(255, 126, 0, 0.4); }
+
+        /* মোডাল */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); backdrop-filter: blur(5px); display: none; justify-content: center; align-items: flex-end; z-index: 2000; }
+        .modal.active { display: flex; }
+        .modal-content { background-color: var(--tg-card-bg); width: 100%; max-height: 80%; border-radius: 20px 20px 0 0; padding: 20px; box-sizing: border-box; transform: translateY(100%); animation: slideUp 0.3s forwards; overflow-y: auto; }
+        @keyframes slideUp { to { transform: translateY(0); } }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .close-btn { font-size: 24px; cursor: pointer; }
+        .form-group { margin-bottom: 15px; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid var(--tg-hint); border-radius: 8px; box-sizing: border-box; background-color: var(--tg-bg); color: var(--tg-text); font-size: 16px; }
+        .confirm-btn, .support-btn { width: 100%; padding: 12px; background-color: var(--tg-btn-bg); color: var(--tg-btn-text); border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+        .support-link { text-align: center; margin-top: 20px; }
+        .support-link p { color: var(--tg-hint); }
+
+    </style>
+</head>
+<body>
+    
+    <!-- ************************************ -->
+    <!-- ১. লোডিং এবং এরর পেজ -->
+    <!-- ************************************ -->
+    <div id="loading-screen">
+        <h2 id="loading-text">টেলিগ্রাম ডেটা লোড হচ্ছে...</h2>
+        <p id="error-text" style="color: red; display: none;">ত্রুটি: টেলিগ্রাম ইউজার আইডি পাওয়া যায়নি। অনুগ্রহ করে টেলিগ্রাম অ্যাপের মধ্যে থেকে আবার খুলুন।</p>
+    </div>
+    
+    
+    <!-- ************************************ -->
+    <!-- ২. মূল ড্যাশবোর্ড পেজ -->
+    <!-- ************************************ -->
+    <div id="dashboard-page" class="page" style="display: none;">
+        <div class="app-container">
+            
+            <!-- হেডার -->
+            <header class="header">
+                <div class="user-info">
+                    <div class="avatar" id="user-initial">U</div>
+                    <div class="user-details">
+                        <h3 id="user-name">Guest</h3>
+                        <p>Level 1</p>
+                    </div>
+                </div>
+                <div class="settings-icon">⚙️</div> <!-- সেটিংস আইকন -->
+            </header>
+
+            <!-- ব্যালেন্স কার্ড -->
+            <section class="balance-card">
+                <h4>Available Balance</h4>
+                <h1 id="available-balance">$0.00</h1>
+                
+                <div class="coin-invest-container">
+                    <div class="coin-box">
+                        <div class="box-title">🪙<span>Coins</span></div>
+                        <div class="box-amount" id="coin-amount">$0.00</div>
+                    </div>
+                    <div class="invest-box">
+                        <div class="box-title">💰<span>Invested</span></div>
+                        <div class="box-amount" id="invested-amount">$0.00</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- মেনু গ্রিড -->
+            <section class="menu-grid">
+                <div class="menu-item" data-action="watch-earn"><div class="menu-icon">📺</div><div class="menu-label">Watch & Earn</div></div>
+                <div class="menu-item" data-action="daily-reward"><div class="menu-icon">🎁</div><div class="menu-label">Daily Reward</div></div>
+                <div class="menu-item" data-action="invite-earn"><div class="menu-icon">🔗</div><div class="menu-label">Invite & Earn</div></div>
+                <div class="menu-item" data-action="math-quiz"><div class="menu-icon">🧮</div><div class="menu-label">Math Quiz (Ad)</div></div>
+                <div class="menu-item" data-action="wallet"><div class="menu-icon">💳</div><div class="menu-label">Wallet System</div></div>
+                <div class="menu-item" data-action="support"><div class="menu-icon">💬</div><div class="menu-label">Support System</div></div>
+            </section>
+            
+        </div>
+        
+        <!-- বটম নেভিগেশন বার -->
+        <nav class="bottom-nav">
+            <div class="nav-item active"><span class="nav-icon">🏠</span><span>হোম</span></div>
+            <div class="nav-item"><span class="nav-icon">📈</span><span>Stats</span></div>
+            <div class="nav-item" data-action="wallet"><span class="center-btn">🚀</span></div>
+            <div class="nav-item"><span class="nav-icon">👤</span><span>প্রোফাইল</span></div>
+            <div class="nav-item" data-action="support"><span class="nav-icon">⚙️</span><span>সাপোর্ট</span></div>
+        </nav>
+        
+        <!-- উইথড্র মোডাল -->
+        <div id="wallet-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header"><h2>উইথড্র সিস্টেম</h2><span class="close-btn" data-modal-close="wallet-modal">❌</span></div>
+                <div class="form-group"><label for="withdraw-method">উইথড্র পদ্ধতি</label><select id="withdraw-method"><option value="bKash">বিকাশ (bKash)</option><option value="nagad">নগদ (Nagad)</option></select></div>
+                <div class="form-group"><label for="withdraw-amount">পরিমাণ লিখুন (USD)</label><input type="number" id="withdraw-amount" placeholder="ন্যূনতম $5.00"></div>
+                <div class="form-group"><label for="withdraw-number">উইথড্র নাম্বার</label><input type="text" id="withdraw-number" placeholder="আপনার বিকাশ/নগদ নাম্বার দিন"></div>
+                <button class="confirm-btn" id="confirm-withdraw">কনফার্ম উইথড্র</button>
+            </div>
+        </div>
+        
+        <!-- সাপোর্ট মোডাল -->
+        <div id="support-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header"><h2>সাপোর্ট সিস্টেম</h2><span class="close-btn" data-modal-close="support-modal">❌</span></div>
+                <div class="support-link">
+                    <p>আপনার কোনো প্রশ্ন বা সাহায্যের প্রয়োজন হলে নিচের বাটনে ক্লিক করে আমাদের টেলিগ্রাম গ্রুপে যোগ দিন।</p>
+                    <a href="https://t.me/+4cuYBcCF2GdjNDM9" target="_blank">
+                        <button class="support-btn">টেলিগ্রাম সাপোর্ট গ্রুপে যোগ দিন</button>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ************************************ -->
+    <!-- ৫. JavaScript লজিক (Firebase + App Logic) -->
+    <!-- ************************************ -->
+    <script>
+        const WebApp = window.Telegram.WebApp;
+
+        // --- Firebase কনফিগারেশন ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCKR2KyLhJoB_qdMBpoJN5raBWDCRDEonE",
+            authDomain: "earning-7bc45.firebaseapp.com",
+            databaseURL: "https://earning-7bc45-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "earning-7bc45",
+            storageBucket: "earning-7bc45.firebasestorage.app",
+            messagingSenderId: "94413359022",
+            appId: "1:94413359022:web:db5b84117334175c7f2a3f"
+        };
+
+        // Firebase ইনিশিয়ালাইজ করুন
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = app.database();
+        
+        // --- DOM Elements ---
+        const dashboardPage = document.getElementById('dashboard-page');
+        const loadingScreen = document.getElementById('loading-screen');
+        const errorText = document.getElementById('error-text');
+
+        const userInitialElement = document.getElementById('user-initial');
+        const userNameElement = document.getElementById('user-name');
+        const availableBalanceElement = document.getElementById('available-balance');
+        const coinAmountElement = document.getElementById('coin-amount');
+        const investedAmountElement = document.getElementById('invested-amount');
+        
+        let currentUserId = null;
+        let userData = {}; // ব্যবহারকারীর বর্তমান ডেটা রাখার জন্য
+
+        // --- ফাংশন: ডেটাবেসে ডিফল্ট ইউজার তৈরি ---
+        function createDefaultUser(user) {
+            const defaultData = {
+                username: user.first_name || 'Guest',
+                balance: 0.00,
+                coins: 0.00,
+                invested: 0.00,
+                telegram_id: user.id,
+                lastLogin: Date.now()
+            };
+            db.ref('users/' + user.id).set(defaultData);
+            return defaultData;
+        }
+        
+        // --- ফাংশন: ড্যাশবোর্ড আপডেট করা ---
+        function updateDashboard(data) {
+            userData = data; // গ্লোবাল ভ্যারিয়েবল আপডেট
+            const initial = data.username.charAt(0).toUpperCase();
+            
+            userInitialElement.innerText = initial;
+            userNameElement.innerText = data.username;
+            availableBalanceElement.innerText = `$${data.balance.toFixed(2)}`;
+            coinAmountElement.innerText = `$${data.coins.toFixed(2)}`;
+            investedAmountElement.innerText = `$${data.invested.toFixed(2)}`;
+        }
+        
+        // --- ফাংশন: Firebase ডেটা সেভ করা ---
+        function saveUserData(updates) {
+            // শুধুমাত্র নির্দিষ্ট ফিল্ডগুলো আপডেটের জন্য
+            const updatedData = { ...userData, ...updates };
+            db.ref('users/' + currentUserId).update(updatedData);
+            userData = updatedData; // লোকাল ডেটা আপডেট
+            updateDashboard(userData);
+        }
+
+        // --- প্রধান অ্যাপ্লিকেশন লোড লজিক ---
+        WebApp.ready();
+        
+        if (WebApp.initDataUnsafe && WebApp.initDataUnsafe.user) {
+            const tgUser = WebApp.initDataUnsafe.user;
+            currentUserId = tgUser.id;
+
+            // ১. Firebase থেকে ডেটা লোড করা
+            db.ref('users/' + currentUserId).once('value', (snapshot) => {
+                let userRecord = snapshot.val();
+
+                if (!userRecord) {
+                    // যদি ডেটাবেসে না থাকে, তবে নতুন ইউজার তৈরি করা
+                    userRecord = createDefaultUser(tgUser);
+                }
+                
+                // ২. ড্যাশবোর্ড আপডেট এবং দেখানো
+                updateDashboard(userRecord);
+                loadingScreen.style.display = 'none';
+                dashboardPage.style.display = 'block';
+                WebApp.expand(); // পুরো স্ক্রিন দখল
+            });
+
+        } else {
+            // টেলিগ্রাম ইউজার ডেটা না পেলে
+            document.getElementById('loading-text').innerText = 'ডেটা লোড করতে ব্যর্থ।';
+            errorText.style.display = 'block';
+            WebApp.showAlert('টেলিগ্রাম ইউজার আইডি পাওয়া যায়নি। অ্যাপটি টেলিগ্রামের বাইরে খোলা হয়েছে।');
+        }
+
+        // --- ৫. মোডাল ম্যানেজমেন্ট ---
+        const walletModal = document.getElementById('wallet-modal');
+        const supportModal = document.getElementById('support-modal');
+
+        function showModal(modalElement) { modalElement.classList.add('active'); }
+        function hideModal(modalElement) { modalElement.classList.remove('active'); }
+
+        document.querySelectorAll('[data-modal-close]').forEach(button => {
+            button.addEventListener('click', (e) => {
+                hideModal(document.getElementById(e.target.getAttribute('data-modal-close')));
+            });
+        });
+        
+        // --- ৬. অ্যাকশন বাটন হ্যান্ডেলার ---
+        document.querySelectorAll('.menu-item, .nav-item[data-action]').forEach(item => {
+            item.addEventListener('click', (e) => {
+                if (!currentUserId) return; // ডেটা লোড না হলে কিছু না করা
+
+                const action = item.getAttribute('data-action');
+                WebApp.HapticFeedback.impactOccurred('light');
+
+                switch (action) {
+                    case 'watch-earn':
+                        WebApp.showAlert('বিজ্ঞাপন দেখা শুরু হচ্ছে... Monitag অ্যাড দেখানো হবে এবং সফল হলে ব্যালেন্স $0.05 বাড়বে।');
+                        // *উদাহরণ: ব্যালেন্স আপডেট লজিক*
+                        const newBalance = userData.balance + 0.05;
+                        const newCoins = userData.coins + 10;
+                        saveUserData({ balance: newBalance, coins: newCoins });
+                        break;
+                    case 'daily-reward':
+                        WebApp.showAlert('ডেইলি রেওয়ার্ড দাবি করা হলো! ব্যালেন্স $0.10 বেড়েছে। 🎁');
+                        // *উদাহরণ: ব্যালেন্স আপডেট লজিক*
+                        saveUserData({ balance: userData.balance + 0.10, coins: userData.coins + 20 });
+                        break;
+                    case 'invite-earn':
+                        // ... (ইনভাইট লজিক আগের মত) ...
+                        WebApp.showPopup({ title: 'ইনভাইট করুন', message: 'আপনার ইনভাইট লিংক: [এখানে আপনার লিংক]', buttons: [{ id: 'share', text: 'শেয়ার করুন', type: 'default' }] }, (buttonId) => {
+                            if (buttonId === 'share') { WebApp.switchInlineQuery('আমার সাথে এই অ্যাপে ইনকাম করুন!', ['users']); }
+                        });
+                        break;
+                    case 'math-quiz':
+                        WebApp.showConfirm('কুইজ শুরু করার আগে বিজ্ঞাপন দেখতে হবে। প্রস্তুত?', (isConfirmed) => {
+                            if (isConfirmed) {
+                                WebApp.showAlert('বিজ্ঞাপন চলছে... অ্যাড শেষ হলে কুইজ শুরু হবে।');
+                                setTimeout(() => {
+                                    WebApp.showAlert('কুইজ শেষ! সঠিক উত্তর দেওয়ায় $0.02 পেলেন।');
+                                    // *উদাহরণ: ব্যালেন্স আপডেট লজিক*
+                                    saveUserData({ balance: userData.balance + 0.02 });
+                                }, 3000);
+                            }
+                        });
+                        break;
+                    case 'wallet':
+                        showModal(walletModal);
+                        break;
+                    case 'support':
+                        showModal(supportModal);
+                        break;
+                }
+            });
+        });
+        
+        // --- ৭. উইথড্র বাটন লজিক ---
+        document.getElementById('confirm-withdraw').addEventListener('click', () => {
+            if (!currentUserId) return;
+
+            const amount = parseFloat(document.getElementById('withdraw-amount').value);
+            const number = document.getElementById('withdraw-number').value;
+            const method = document.getElementById('withdraw-method').value;
+
+            if (!amount || amount < 5) { WebApp.showAlert('পরিমাণ কমপক্ষে $5.00 হতে হবে।'); return; }
+            if (amount > userData.balance) { WebApp.showAlert('আপনার অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই।'); return; }
+            if (!number || number.length < 10) { WebApp.showAlert('একটি সঠিক ' + method + ' নাম্বার দিন।'); return; }
+            
+            WebApp.showConfirm(`আপনি কি ${number} নাম্বারে ${method} এর মাধ্যমে $${amount.toFixed(2)} উইথড্র করতে নিশ্চিত?`, (isConfirmed) => {
+                if (isConfirmed) {
+                    // Firebase: উইথড্র রিকোয়েস্ট সেভ করার লজিক (একটি 'withdrawals' কালেকশনে)
+                    
+                    // ইউজার ব্যালেন্স কমানোর লজিক:
+                    const newBalance = userData.balance - amount;
+                    saveUserData({ balance: newBalance });
+                    
+                    WebApp.showAlert('উইথড্র রিকোয়েস্ট সফলভাবে পাঠানো হয়েছে! ✅ আপনার ব্যালেন্স আপডেট করা হয়েছে।');
+                    hideModal(walletModal);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
